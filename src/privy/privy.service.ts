@@ -11,7 +11,6 @@ export class PrivyService {
   private readonly secret: string;
 
   constructor(private configService: ConfigService) {
-    console.log('testik', this.configService.get<string>(ConfigVariables.PRIVY_API_KEY, 'your-app-id'));
     this.applicationId = this.configService.get<string>(ConfigVariables.PRIVY_APP_ID, 'your-app-id');
     this.secret = this.configService.get<string>(ConfigVariables.PRIVY_API_KEY, 'your-app-secret');
 

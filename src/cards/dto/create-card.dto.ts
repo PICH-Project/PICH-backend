@@ -46,9 +46,8 @@ export class CreateCardDto {
   @IsOptional()
   avatar?: string;
 
-  @IsString()
   @IsOptional()
-  phone?: string;
+  phones?: string[];
 
   @IsEmail()
   @IsOptional()

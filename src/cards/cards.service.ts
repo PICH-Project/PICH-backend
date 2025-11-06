@@ -26,6 +26,8 @@ export class CardsService {
       userId: user.id,
     });
 
+    console.log('createCardDto', createCardDto)
+
     const savedCard = await this.cardsRepository.save(card);
 
     if (createCardDto.isMainCard) {
@@ -63,6 +65,12 @@ export class CardsService {
   }
 
   async findAll(user: User): Promise<Card[]> {
+    console.log(
+      await this.cardsRepository.find({
+      where: { userId: user.id },
+      order: { createdAt: 'DESC' },
+    })
+    );
     return this.cardsRepository.find({
       where: { userId: user.id },
       order: { createdAt: 'DESC' },

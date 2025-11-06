@@ -44,8 +44,8 @@ export class Card {
   @Column({ nullable: true, default: null })
   avatar: string;
 
-  @Column({ nullable: true, default: null })
-  phone: string;
+  @Column({ type: 'json', nullable: true, default: null })
+  phones: string[];
 
   @Column({ nullable: true, default: null })
   email: string;
