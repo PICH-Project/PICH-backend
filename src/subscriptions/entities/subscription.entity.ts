@@ -42,10 +42,10 @@ export class Subscription {
   autoRenew!: boolean;
 
   @Column({ type: 'varchar', nullable: true })
-  paymentProvider!: string | null; // 'nowpayments', 'stripe', etc.
+  paymentProvider!: string | null; // fix later
 
   @Column({ type: 'varchar', nullable: true })
-  externalSubscriptionId!: string | null; // ID від payment provider
+  externalSubscriptionId!: string | null;
 
   @Column({ type: 'json', nullable: true })
   metadata!: Record<string, any> | null;
