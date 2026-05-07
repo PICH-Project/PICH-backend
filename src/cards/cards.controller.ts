@@ -15,7 +15,7 @@ import { UpdateCardDto } from './dto/update-card.dto';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import type { User } from '../users/entities/user.entity';
 import { AuthGuard } from '@nestjs/passport';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @Controller('cards')
 export class CardsController {
@@ -49,11 +49,7 @@ export class CardsController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateCardDto: UpdateCardDto,
-    @GetUser() user: User,
-  ) {
+  update(@Param('id') id: string, @Body() updateCardDto: UpdateCardDto, @GetUser() user: User) {
     return this.cardsService.update(id, updateCardDto, user);
   }
 
