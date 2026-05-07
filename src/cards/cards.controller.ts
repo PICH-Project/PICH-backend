@@ -36,6 +36,11 @@ export class CardsController {
     return this.cardsService.findAll(user);
   }
 
+  @Get('usage')
+  getUsageInfo(@GetUser() user: User) {
+    return this.cardsService.getCardUsageInfo(user.id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get(':id')
   findOne(@Param('id') id: string, @GetUser() user: User) {
