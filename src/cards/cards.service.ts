@@ -1,11 +1,16 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { In, Not, type Repository } from 'typeorm';
 import { Card } from './entities/card.entity';
 import type { CreateCardDto } from './dto/create-card.dto';
 import type { UpdateCardDto } from './dto/update-card.dto';
 import { User } from '../users/entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class CardsService {
@@ -18,7 +23,13 @@ export class CardsService {
   ) {}
 
   async create(createCardDto: CreateCardDto, user: User): Promise<Card> {
-    await this.checkSubscriptionLimits(user.id, createCardDto.type);
+    await this.checkSubscriptionLimits(
+      user.id,
+      createCardDto.type,
+      createCardDto.bio,
+      createCardDto.phones,
+      createCardDto.social,
+    );
 
     const card = this.cardsRepository.create({
       ...createCardDto,
@@ -37,8 +48,14 @@ export class CardsService {
     return savedCard;
   }
 
-  private async checkSubscriptionLimits(userId: string, cardType: string): Promise<void> {
-    const limits = await this.subscriptionsService.getUserLimits(userId);
+  private async checkSubscriptionLimits(
+    userId: string,
+    cardType: string,
+    bio?: string,
+    phones?: string[],
+    social?: Record<string, string>,
+  ): Promise<void> {
+    const limits = await this.subscriptionsService.getUserCombinedLimits(userId);
 
     if (!limits.cardTypes.includes(cardType)) {
       throw new ForbiddenException(
@@ -49,7 +66,7 @@ export class CardsService {
     }
 
     if (limits.maxCards !== -1) {
-      // -1 - unlimited
+      // -1 = unlimited
       const currentCardCount = await this.cardsRepository.count({
         where: { userId },
       });
@@ -58,6 +75,33 @@ export class CardsService {
         throw new ForbiddenException(
           `You have reached the maximum number of cards (${limits.maxCards}) ` +
             `for your subscription plan. Please upgrade or delete existing cards.`,
+        );
+      }
+    }
+
+    if (bio && bio.length > limits.bioMaxLength) {
+      throw new BadRequestException(
+        `Bio is too long. Maximum ${limits.bioMaxLength} characters allowed. ` +
+          `You entered ${bio.length} characters. ` +
+          `Upgrade to get more space for bio.`,
+      );
+    }
+
+    if (phones && phones.length > limits.phoneNumbers) {
+      throw new ForbiddenException(
+        `Your subscription allows ${limits.phoneNumbers} phone number(s). ` +
+          `You tried to add ${phones.length}. ` +
+          `Upgrade to Premium for +1 phone.`,
+      );
+    }
+
+    if (social) {
+      const socialCount = Object.keys(social).length;
+      if (socialCount > limits.socialLinks) {
+        throw new ForbiddenException(
+          `Your subscription allows ${limits.socialLinks} social link(s). ` +
+            `You tried to add ${socialCount}. ` +
+            `Upgrade to Premium for +2 social links.`,
         );
       }
     }
@@ -122,7 +166,6 @@ export class CardsService {
       throw new NotFoundException(`Card with ID "${id}" not found`);
     }
 
-    // Remove sensitive information by creating a new user object without password
     if (card.user) {
       const { password: _unused, ...userWithoutPassword } = card.user;
       card.user = userWithoutPassword as User;
@@ -133,6 +176,14 @@ export class CardsService {
 
   async update(id: string, updateCardDto: UpdateCardDto, user: User): Promise<Card> {
     const card = await this.findOne(id, user);
+
+    const newType = updateCardDto.type || card.type;
+    const newBio = updateCardDto.bio !== undefined ? updateCardDto.bio : card.bio;
+    const newPhones = updateCardDto.phones || card.phones;
+    const newSocial = updateCardDto.social || card.social;
+
+    await this.checkSubscriptionLimits(user.id, newType, newBio, newPhones, newSocial);
+
     const isBecomingMainCard = updateCardDto.isMainCard === true && !card.isMainCard;
 
     Object.assign(card, updateCardDto);
@@ -209,16 +260,18 @@ export class CardsService {
     }
   }
 
-  /**
-   * Отримати інформацію про поточне використання ліміт
-   */
   async getCardUsageInfo(userId: string): Promise<{
     currentCount: number;
     maxCards: number;
     allowedTypes: string[];
     canCreateMore: boolean;
+    limits: {
+      phoneNumbers: number;
+      socialLinks: number;
+      bioMaxLength: number;
+    };
   }> {
-    const limits = await this.subscriptionsService.getUserLimits(userId);
+    const limits = await this.subscriptionsService.getUserCombinedLimits(userId);
     const currentCount = await this.cardsRepository.count({ where: { userId } });
 
     return {
@@ -226,6 +279,11 @@ export class CardsService {
       maxCards: limits.maxCards,
       allowedTypes: limits.cardTypes,
       canCreateMore: limits.maxCards === -1 || currentCount < limits.maxCards,
+      limits: {
+        phoneNumbers: limits.phoneNumbers,
+        socialLinks: limits.socialLinks,
+        bioMaxLength: limits.bioMaxLength,
+      },
     };
   }
 }
