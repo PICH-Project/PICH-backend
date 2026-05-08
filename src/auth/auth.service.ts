@@ -1,13 +1,14 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from './jwt-payload.interface';
-import { PrivyService } from 'src/privy/privy.service';
+import { PrivyService } from '../privy/privy.service';
 import { LoginWithPrivyDto } from './dto/login-with-privy.dto';
-import { User } from 'src/users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,8 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private readonly privyService: PrivyService,
+    @Inject(forwardRef(() => SubscriptionsService))
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   private async createUserFromPrivyToken(userPrivyId: string): Promise<User> {
@@ -35,10 +38,10 @@ export class AuthService {
       firstName,
       lastName,
     };
+    const user = await this.usersService.create(newUser);
+    await this.subscriptionsService.createFreeSubscription(user.id);
 
-    return this.usersService.create(
-      newUser
-    );
+    return user;
   }
 
   public async loginWithPrivy(loginWithPrivyDto: LoginWithPrivyDto) {
@@ -68,6 +71,8 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     // Create user (UsersService handles password hashing)
     const user = await this.usersService.create(registerDto);
+
+    await this.subscriptionsService.createFreeSubscription(user.id);
 
     // Generate JWT token
     const payload: JwtPayload = { sub: user.id, email: user.email };

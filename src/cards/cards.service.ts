@@ -1,14 +1,11 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { In, Not, type Repository } from 'typeorm';
 import { Card } from './entities/card.entity';
 import type { CreateCardDto } from './dto/create-card.dto';
 import type { UpdateCardDto } from './dto/update-card.dto';
 import { User } from '../users/entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 
 @Injectable()
 export class CardsService {
@@ -17,16 +14,19 @@ export class CardsService {
     private readonly cardsRepository: Repository<Card>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(createCardDto: CreateCardDto, user: User): Promise<Card> {
+    await this.checkSubscriptionLimits(user.id, createCardDto.type);
+
     const card = this.cardsRepository.create({
       ...createCardDto,
       user,
       userId: user.id,
     });
 
-    console.log('createCardDto', createCardDto)
+    console.log('createCardDto', createCardDto);
 
     const savedCard = await this.cardsRepository.save(card);
 
@@ -37,10 +37,33 @@ export class CardsService {
     return savedCard;
   }
 
-  private async handleMainCardUpdate(
-    currentCardId,
-    userId: string,
-  ): Promise<void> {
+  private async checkSubscriptionLimits(userId: string, cardType: string): Promise<void> {
+    const limits = await this.subscriptionsService.getUserLimits(userId);
+
+    if (!limits.cardTypes.includes(cardType)) {
+      throw new ForbiddenException(
+        `Your subscription plan does not support ${cardType} cards. ` +
+          `Allowed types: ${limits.cardTypes.join(', ')}. ` +
+          `Upgrade to access more card types.`,
+      );
+    }
+
+    if (limits.maxCards !== -1) {
+      // -1 - unlimited
+      const currentCardCount = await this.cardsRepository.count({
+        where: { userId },
+      });
+
+      if (currentCardCount >= limits.maxCards) {
+        throw new ForbiddenException(
+          `You have reached the maximum number of cards (${limits.maxCards}) ` +
+            `for your subscription plan. Please upgrade or delete existing cards.`,
+        );
+      }
+    }
+  }
+
+  private async handleMainCardUpdate(currentCardId, userId: string): Promise<void> {
     // Find all cards marked as main except the current one
     const mainCards = await this.cardsRepository.find({
       where: {
@@ -52,25 +75,19 @@ export class CardsService {
 
     console.log(
       `Found ${mainCards.length} cards currently marked as main:`,
-      mainCards.map((card) => card.id),
+      mainCards.map(card => card.id),
     );
 
     // Update all found cards to not be main
     if (mainCards.length > 0) {
       await this.cardsRepository.update(
-        { id: In(mainCards.map((card) => card.id)) },
+        { id: In(mainCards.map(card => card.id)) },
         { isMainCard: false },
       );
     }
   }
 
   async findAll(user: User): Promise<Card[]> {
-    console.log(
-      await this.cardsRepository.find({
-      where: { userId: user.id },
-      order: { createdAt: 'DESC' },
-    })
-    );
     return this.cardsRepository.find({
       where: { userId: user.id },
       order: { createdAt: 'DESC' },
@@ -89,9 +106,7 @@ export class CardsService {
 
     // Check if the card belongs to the user
     if (card.userId !== user.id) {
-      throw new ForbiddenException(
-        'You do not have permission to access this card',
-      );
+      throw new ForbiddenException('You do not have permission to access this card');
     }
 
     return card;
@@ -116,14 +131,9 @@ export class CardsService {
     return card;
   }
 
-  async update(
-    id: string,
-    updateCardDto: UpdateCardDto,
-    user: User,
-  ): Promise<Card> {
+  async update(id: string, updateCardDto: UpdateCardDto, user: User): Promise<Card> {
     const card = await this.findOne(id, user);
-    const isBecomingMainCard =
-      updateCardDto.isMainCard === true && !card.isMainCard;
+    const isBecomingMainCard = updateCardDto.isMainCard === true && !card.isMainCard;
 
     Object.assign(card, updateCardDto);
 
@@ -188,5 +198,34 @@ export class CardsService {
     const card = await this.findOne(id, user);
 
     await this.cardsRepository.remove(card);
+  }
+
+  async canCreateCard(userId: string, cardType?: string): Promise<boolean> {
+    try {
+      await this.checkSubscriptionLimits(userId, cardType || 'PAC');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Отримати інформацію про поточне використання ліміт
+   */
+  async getCardUsageInfo(userId: string): Promise<{
+    currentCount: number;
+    maxCards: number;
+    allowedTypes: string[];
+    canCreateMore: boolean;
+  }> {
+    const limits = await this.subscriptionsService.getUserLimits(userId);
+    const currentCount = await this.cardsRepository.count({ where: { userId } });
+
+    return {
+      currentCount,
+      maxCards: limits.maxCards,
+      allowedTypes: limits.cardTypes,
+      canCreateMore: limits.maxCards === -1 || currentCount < limits.maxCards,
+    };
   }
 }

@@ -5,12 +5,13 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
-
+import { UserStatsDto } from './dto/user-stats.dto';
+import { Connection } from '../connections/entities/connection.entity';
 // Define a more specific interface for Postgres errors
 interface PostgresError {
   code: string;
@@ -27,6 +28,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(Connection)
+    private connectionsRepository: Repository<Connection>,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -96,7 +99,7 @@ export class UsersService {
       where: { privyId },
       relations: ['cards'],
     });
-    
+
     return user;
   }
 
@@ -120,11 +123,9 @@ export class UsersService {
     const user = await this.findOne(userId);
 
     // Check if the card belongs to the user
-    const cardBelongsToUser = user.cards.some((card) => card.id === cardId);
+    const cardBelongsToUser = user.cards.some(card => card.id === cardId);
     if (!cardBelongsToUser) {
-      throw new NotFoundException(
-        `Card with ID "${cardId}" not found for this user`,
-      );
+      throw new NotFoundException(`Card with ID "${cardId}" not found for this user`);
     }
 
     user.mainCardId = cardId;
@@ -136,5 +137,29 @@ export class UsersService {
     if (result.affected === 0) {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
+  }
+
+  async getUserStats(userId: string): Promise<UserStatsDto> {
+    const user = await this.findOne(userId);
+
+    const totalCardsCount = user.cards ? user.cards.length : 0;
+    let connectionsCount = 0;
+
+    if (totalCardsCount > 0) {
+      const userCardIds = user.cards.map(card => card.id);
+
+      connectionsCount = await this.connectionsRepository.count({
+        where: [{ card1Id: In(userCardIds) }, { card2Id: In(userCardIds) }],
+      });
+    }
+
+    return {
+      totalCards: totalCardsCount,
+      connections: connectionsCount,
+      cardsReceived: connectionsCount,
+      subscriptionTier: user.subscriptionPlan,
+      subscriptionExpiresAt: user.subscriptionExpiresAt,
+      tokenBalance: user.tokenBalance,
+    };
   }
 }

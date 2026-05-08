@@ -14,7 +14,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import type { User } from './entities/user.entity';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @Controller('users')
 export class UsersController {
@@ -37,6 +37,12 @@ export class UsersController {
   @Get('profile')
   getProfile(@GetUser() user: User) {
     return user;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('stats')
+  async getUserStats(@GetUser() user: User) {
+    return this.usersService.getUserStats(user.id);
   }
 
   @Get(':id')

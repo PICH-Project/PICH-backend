@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', "sh -c 'pg_isready -U ${DATABASE_USERNAME} -d ${DATABASE_NAME}'"]
+      test: ['CMD-SHELL', "sh -c 'pg_isready -U postgres -d pich'"]
       interval: 10s
       timeout: 3s
       retries: 3
