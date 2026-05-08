@@ -6,6 +6,7 @@ import {
   IsEmail,
   IsObject,
   ValidateNested,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CardType, CardCategory } from '../entities/card.entity';
@@ -45,9 +46,10 @@ export class UpdateCardDto {
   @IsOptional()
   avatar?: string;
 
-  @IsString()
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
-  phone?: string;
+  phones?: string[];
 
   @IsEmail()
   @IsOptional()
