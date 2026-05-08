@@ -7,7 +7,7 @@ import {
   IsEnum,
   IsObject,
 } from 'class-validator';
-import { PlanCode } from '../plan-code.enum';
+import { PlanCode } from '../subscriptions.enums';
 import { PlanFeatures } from '../entities/subscription-plan.entity';
 
 export class CreateSubscriptionPlanDto {

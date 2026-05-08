@@ -12,8 +12,9 @@ import { User } from '../../users/entities/user.entity';
 export enum CardType {
   BAC = 'BAC', // Business Automatic Card
   PAC = 'PAC', // Personal Automatic Card
-  VAC = 'VAC', // Virtual Automatic Card
-  CAC = 'CAC', // Custom Automatic Card
+  VIPAC = 'VIPAC',
+  // VAC = 'VAC', // Virtual Automatic Card
+  // CAC = 'CAC', // Custom Automatic Card
 }
 
 export enum CardCategory {
@@ -83,7 +84,7 @@ export class Card {
   @Column({ default: false })
   isInWallet: boolean;
 
-  @ManyToOne(() => User, (user) => user.cards)
+  @ManyToOne(() => User, user => user.cards)
   @JoinColumn({ name: 'userId' })
   user: User;
 

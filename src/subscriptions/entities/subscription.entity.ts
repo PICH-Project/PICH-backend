@@ -9,50 +9,69 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { SubscriptionPlan } from './subscription-plan.entity';
+import { BillingCycle, SubscriptionStatus, SubscriptionType } from '../subscriptions.enums';
 
-@Entity('subscriptions')
+@Entity('user_subscriptions')
 export class Subscription {
   @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  id: string;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'userId' })
-  user!: User;
+  user: User;
 
   @Column()
-  userId!: string;
+  userId: string;
 
   @ManyToOne(() => SubscriptionPlan)
   @JoinColumn({ name: 'planId' })
-  plan!: SubscriptionPlan;
+  plan: SubscriptionPlan;
 
   @Column()
-  planId!: string;
+  planId: string;
 
-  @Column()
-  status!: string; // 'active', 'expired', 'cancelled', 'pending'
+  @Column({
+    type: 'enum',
+    enum: SubscriptionType,
+    default: SubscriptionType.PRIMARY,
+  })
+  subscriptionType: SubscriptionType;
+
+  @Column({
+    type: 'enum',
+    enum: BillingCycle,
+    nullable: true,
+  })
+  billingCycle: BillingCycle;
+
+  @Column({
+    type: 'enum',
+    enum: SubscriptionStatus,
+    default: SubscriptionStatus.ACTIVE,
+  })
+  status: SubscriptionStatus;
+
+  @Column({ type: 'timestamp', nullable: true, default: () => 'CURRENT_TIMESTAMP' })
+  startedAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  startedAt!: Date | null;
-
-  @Column({ type: 'timestamp', nullable: true })
-  expiresAt!: Date | null;
+  expiresAt: Date | null;
 
   @Column({ default: true })
-  autoRenew!: boolean;
+  autoRenew: boolean;
 
   @Column({ type: 'varchar', nullable: true })
-  paymentProvider!: string | null; // fix later
+  paymentProvider: string | null; // fix later
 
   @Column({ type: 'varchar', nullable: true })
-  externalSubscriptionId!: string | null;
+  externalSubscriptionId: string | null;
 
   @Column({ type: 'json', nullable: true })
-  metadata!: Record<string, any> | null;
+  metadata: Record<string, any> | null;
 
   @CreateDateColumn()
-  createdAt!: Date;
+  createdAt: Date;
 
   @UpdateDateColumn()
-  updatedAt!: Date;
+  updatedAt: Date;
 }

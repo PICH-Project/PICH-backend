@@ -6,10 +6,30 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SubscriptionPlan } from './entities/subscription-plan.entity';
+import { PlanFeatures, SubscriptionPlan } from './entities/subscription-plan.entity';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { User } from '../users/entities/user.entity';
 import { Subscription } from './entities/subscription.entity';
+import {
+  BillingCycle,
+  PlanCode,
+  SubscriptionStatus,
+  SubscriptionType,
+} from './subscriptions.enums';
+export interface CombinedLimits {
+  cardTypes: string[];
+  maxCards: number;
+  phoneNumbers: number;
+  socialLinks: number;
+  bioMaxLength: number;
+  customization: boolean;
+  coinFarmBonus: boolean;
+  vipIndicator: boolean;
+  blackTheme: boolean;
+  privacySettings: boolean;
+  animatedPhoto: boolean;
+  animatedBackground: boolean;
+}
 
 @Injectable()
 export class SubscriptionsService {
@@ -45,9 +65,21 @@ export class SubscriptionsService {
     return plan;
   }
 
+  async getPlanByCode(code: PlanCode): Promise<SubscriptionPlan> {
+    const plan = await this.plansRepository.findOne({ where: { code } });
+    if (!plan) {
+      throw new NotFoundException(`Plan with code "${code}" not found`);
+    }
+    return plan;
+  }
+
   async getCurrentSubscription(userId: string): Promise<Subscription | null> {
     const subscription = await this.subscriptionsRepository.findOne({
-      where: { userId, status: 'active' },
+      where: {
+        userId,
+        status: SubscriptionStatus.ACTIVE,
+        subscriptionType: SubscriptionType.PRIMARY,
+      },
       relations: ['plan'],
       order: { createdAt: 'DESC' },
     });
@@ -55,18 +87,37 @@ export class SubscriptionsService {
     return subscription;
   }
 
+  async getAllActiveSubscriptions(userId: string): Promise<Subscription[]> {
+    return this.subscriptionsRepository.find({
+      where: {
+        userId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+      relations: ['plan'],
+      order: { subscriptionType: 'ASC', createdAt: 'DESC' }, // PRIMARY першим
+    });
+  }
+
   async createFreeSubscription(userId: string): Promise<Subscription> {
     const freePlan = await this.getPlanByName('FREE');
 
-    const existing = await this.getCurrentSubscription(userId);
-    if (existing) {
-      return existing;
+    const existingPrimary = await this.subscriptionsRepository.findOne({
+      where: {
+        userId,
+        status: SubscriptionStatus.ACTIVE,
+        subscriptionType: SubscriptionType.PRIMARY,
+      },
+    });
+
+    if (existingPrimary) {
+      return existingPrimary;
     }
 
     const subscription = this.subscriptionsRepository.create({
       userId,
       planId: freePlan.id,
-      status: 'active',
+      subscriptionType: SubscriptionType.PRIMARY,
+      status: SubscriptionStatus.ACTIVE,
       startedAt: new Date(),
       expiresAt: null, // FREE never expires
       autoRenew: false,
@@ -89,29 +140,47 @@ export class SubscriptionsService {
     externalId: string;
     amount: number;
     currency: string;
+    billingCycle?: BillingCycle;
   }): Promise<Subscription> {
-    const { userId, planId, paymentProvider, externalId } = data;
+    const {
+      userId,
+      planId,
+      paymentProvider,
+      externalId,
+      billingCycle = BillingCycle.MONTHLY,
+    } = data;
 
     const plan = await this.getPlanById(planId);
+
+    const subType =
+      plan.code === PlanCode.PREMIUM ? SubscriptionType.ADDON : SubscriptionType.PRIMARY;
 
     const startedAt = new Date();
     const expiresAt = new Date();
 
     if (plan.durationMonths && plan.durationMonths > 0) {
-      expiresAt.setMonth(expiresAt.getMonth() + plan.durationMonths);
+      const monthsToAdd =
+        billingCycle === BillingCycle.YEARLY ? plan.durationMonths * 12 : plan.durationMonths;
+      expiresAt.setMonth(expiresAt.getMonth() + monthsToAdd);
     } else {
       expiresAt.setFullYear(expiresAt.getFullYear() + 100);
     }
 
     await this.subscriptionsRepository.update(
-      { userId, status: 'active' },
-      { status: 'cancelled', autoRenew: false },
+      {
+        userId,
+        status: SubscriptionStatus.ACTIVE,
+        subscriptionType: subType,
+      },
+      { status: SubscriptionStatus.CANCELLED, autoRenew: false },
     );
 
     const subscription = this.subscriptionsRepository.create({
       userId,
       planId,
-      status: 'active',
+      subscriptionType: subType,
+      billingCycle,
+      status: SubscriptionStatus.ACTIVE,
       startedAt,
       expiresAt,
       autoRenew: true,
@@ -120,20 +189,69 @@ export class SubscriptionsService {
     });
 
     const savedSubscription = await this.subscriptionsRepository.save(subscription);
-
-    await this.usersRepository.update(userId, {
-      subscriptionPlan: plan.name,
-      subscriptionExpiresAt: expiresAt,
-    });
+    if (subType === SubscriptionType.PRIMARY) {
+      await this.usersRepository.update(userId, {
+        subscriptionPlan: plan.name,
+        subscriptionExpiresAt: expiresAt,
+      });
+    }
 
     return savedSubscription;
   }
 
-  async cancelSubscription(userId: string): Promise<Subscription> {
-    const subscription = await this.getCurrentSubscription(userId);
+  async addPremiumAddon(
+    userId: string,
+    billingCycle: BillingCycle = BillingCycle.MONTHLY,
+  ): Promise<Subscription> {
+    const premiumPlan = await this.getPlanByCode(PlanCode.PREMIUM);
+
+    const activeSubs = await this.subscriptionsRepository.find({
+      where: { userId, status: SubscriptionStatus.ACTIVE },
+      relations: ['plan'],
+    });
+
+    const hasVip = activeSubs.some(s => s.plan.code === PlanCode.VIP);
+    if (hasVip) {
+      throw new BadRequestException('VIP subscription already includes all premium features');
+    }
+
+    const hasPremium = activeSubs.some(s => s.subscriptionType === SubscriptionType.ADDON);
+    if (hasPremium) {
+      throw new BadRequestException('Premium addon already active');
+    }
+
+    const expiresAt = new Date();
+    if (billingCycle === BillingCycle.MONTHLY) {
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+    } else {
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    }
+
+    const subscription = this.subscriptionsRepository.create({
+      userId,
+      planId: premiumPlan.id,
+      subscriptionType: SubscriptionType.ADDON,
+      billingCycle,
+      status: SubscriptionStatus.ACTIVE,
+      startedAt: new Date(),
+      expiresAt,
+      autoRenew: true,
+    });
+
+    return this.subscriptionsRepository.save(subscription);
+  }
+
+  async cancelSubscription(
+    userId: string,
+    type: SubscriptionType = SubscriptionType.PRIMARY,
+  ): Promise<Subscription> {
+    const subscription = await this.subscriptionsRepository.findOne({
+      where: { userId, status: SubscriptionStatus.ACTIVE, subscriptionType: type },
+      relations: ['plan'],
+    });
 
     if (!subscription) {
-      throw new NotFoundException('No active subscription found');
+      throw new NotFoundException(`No active ${type} subscription found`);
     }
 
     if (subscription.plan.name === 'FREE') {
@@ -149,39 +267,73 @@ export class SubscriptionsService {
 
     const expired = await this.subscriptionsRepository
       .createQueryBuilder('subscription')
-      .where('subscription.status = :status', { status: 'active' })
+      .where('subscription.status = :status', { status: SubscriptionStatus.ACTIVE })
       .andWhere('subscription.expiresAt < :now', { now })
       .getMany();
 
     for (const subscription of expired) {
-      subscription.status = 'expired';
+      subscription.status = SubscriptionStatus.EXPIRED;
       await this.subscriptionsRepository.save(subscription);
 
-      const freePlan = await this.getPlanByName('FREE');
-      await this.createFreeSubscription(subscription.userId);
+      if (subscription.subscriptionType === SubscriptionType.PRIMARY) {
+        await this.createFreeSubscription(subscription.userId);
+      }
     }
   }
 
-  async getUserLimits(userId: string): Promise<{
-    maxCards: number;
-    cardTypes: string[];
-    phoneNumbers: number;
-    socialLinks: number;
-    customization: boolean;
-    aiFeatures: boolean;
-  }> {
-    const subscription = await this.getCurrentSubscription(userId);
+  async getUserCombinedLimits(userId: string): Promise<CombinedLimits> {
+    const activeSubs = await this.subscriptionsRepository.find({
+      where: { userId, status: SubscriptionStatus.ACTIVE },
+      relations: ['plan'],
+    });
 
-    if (!subscription) {
+    const primarySub = activeSubs.find(s => s.subscriptionType === SubscriptionType.PRIMARY);
+    const addonSub = activeSubs.find(s => s.subscriptionType === SubscriptionType.ADDON);
+
+    let baseFeatures: any;
+    if (primarySub && primarySub.plan) {
+      baseFeatures = primarySub.plan.features;
+    } else {
       const freePlan = await this.getPlanByName('FREE');
-      return freePlan.features;
+      baseFeatures = freePlan.features;
     }
 
-    return subscription.plan.features;
+    const addonFeatures = addonSub?.plan?.features || {
+      additionalPhones: 0,
+      additionalSocials: 0,
+      customization: false,
+      coinFarmBonus: false,
+      animatedPhoto: false,
+      animatedBackground: false,
+    };
+    return {
+      cardTypes: baseFeatures.cardTypes || ['PAC'],
+      maxCards: baseFeatures.maxCards || 1,
+
+      phoneNumbers: (baseFeatures.phoneNumbers || 1) + (addonFeatures.additionalPhones || 0),
+      socialLinks: (baseFeatures.socialLinks || 4) + (addonFeatures.additionalSocials || 0),
+
+      bioMaxLength: baseFeatures.bioMaxLength || 100,
+
+      customization: baseFeatures.customization || addonFeatures.customization || false,
+      coinFarmBonus: baseFeatures.coinFarmBonus || addonFeatures.coinFarmBonus || false,
+      vipIndicator: baseFeatures.vipIndicator || false,
+      blackTheme: baseFeatures.blackTheme || false,
+      privacySettings: baseFeatures.privacySettings || false,
+      animatedPhoto: baseFeatures.animatedPhoto || addonFeatures.animatedPhoto || false,
+      animatedBackground:
+        baseFeatures.animatedBackground || addonFeatures.animatedBackground || false,
+    };
+  }
+
+  async getUserLimits(userId: string): Promise<CombinedLimits> {
+    return this.getUserCombinedLimits(userId);
   }
 
   async createPlan(createDto: CreateSubscriptionPlanDto): Promise<SubscriptionPlan> {
-    const existingPlan = await this.plansRepository.findOne({ where: { code: createDto.code } });
+    const existingPlan = await this.plansRepository.findOne({
+      where: { code: createDto.code },
+    });
     if (existingPlan) {
       throw new ConflictException(`Plan with code ${createDto.code} already exists`);
     }
