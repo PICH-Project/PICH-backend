@@ -5,14 +5,29 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { PlanCode } from '../plan-code.enum';
+import { PlanCode } from '../subscriptions.enums';
+
 export interface PlanFeatures {
   maxCards: number;
   cardTypes: string[];
   phoneNumbers: number;
   socialLinks: number;
+  bioMaxLength: number;
+  // additionalFields: number;
+
   customization: boolean;
-  aiFeatures: boolean;
+  // aiFeatures: boolean;
+
+  additionalPhones: number;
+  additionalSocials: number;
+
+  // premium features:
+  coinFarmBonus: boolean;
+  vipIndicator: boolean;
+  blackTheme: boolean;
+  privacySettings: boolean;
+  animatedPhoto: boolean;
+  animatedBackground: boolean;
 }
 
 @Entity('subscription_plans')
@@ -42,14 +57,6 @@ export class SubscriptionPlan {
 
   @Column({ type: 'jsonb', default: {} })
   features: PlanFeatures;
-  // {
-  //   maxCards: number;
-  //   cardTypes: string[];
-  //   phoneNumbers: number;
-  //   socialLinks: number;
-  //   customization: boolean;
-  //   aiFeatures?: boolean;
-  // };
 
   @Column({ type: 'text', nullable: true })
   description: string | null;
