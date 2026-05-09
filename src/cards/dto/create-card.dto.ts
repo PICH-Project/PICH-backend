@@ -60,6 +60,10 @@ export class CreateCardDto {
   @IsOptional()
   social?: Record<string, string>;
 
+  @IsObject()
+  @IsOptional()
+  notes?: Record<string, string>;
+
   @IsBoolean()
   @IsOptional()
   isPrime?: boolean;
@@ -67,6 +71,10 @@ export class CreateCardDto {
   @IsString()
   @IsOptional()
   bio?: string;
+
+  @IsString()
+  @IsOptional()
+  contactPerson?: string;
 
   @IsObject()
   @ValidateNested()

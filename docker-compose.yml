@@ -18,10 +18,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: development
+    command: yarn start:dev
     ports:
       - '3003:3003'
     env_file:
       - .env
+    volumes:
+      - ./src:/usr/src/app/src
+      - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - ./tsconfig.build.json:/usr/src/app/tsconfig.build.json
+      - ./nest-cli.json:/usr/src/app/nest-cli.json
     restart: on-failure
     depends_on:
       postgres:

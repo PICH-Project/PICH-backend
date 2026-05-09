@@ -54,11 +54,17 @@ export class Card {
   @Column({ type: 'json', nullable: true, default: null })
   social: Record<string, string>;
 
+  @Column({ type: 'json', nullable: true, default: null })
+  notes: Record<string, string>;
+
   @Column({ default: false })
   isPrime: boolean;
 
   @Column({ nullable: true, default: null })
   bio: string;
+
+  @Column({ nullable: true, default: null })
+  contactPerson: string;
 
   @Column({ type: 'json', nullable: true, default: null })
   location: {

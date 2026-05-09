@@ -24,8 +24,6 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        console.log('huj', configService.get('DB_PASSWORD'));
-
         return {
           type: 'postgres',
           host: configService.get('DB_HOST', 'localhost'),
