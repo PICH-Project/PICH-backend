@@ -10,6 +10,7 @@ import { QrModule } from './qr/qr.module';
 import { AuthModule } from './auth/auth.module';
 import { PrivyModule } from './privy/privy.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     AuthModule,
     PrivyModule,
     SubscriptionsModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

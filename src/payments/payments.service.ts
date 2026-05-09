@@ -45,16 +45,13 @@ export class PaymentsService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          // for testnet
           tokenOut: {
-            chainId: '84532',
-            address: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+            chainId: 'sol',
+            address: 'SOL',
           },
-          // for mainnet
-          // tokenOut: {
-          //   chainId: '8453',
-          //   address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC
-          // },
+          // EVM USDC mainnet: { chainId: '8453', address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' }
+          // EVM USDC Sepolia: { chainId: '84532', address: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' }
+          // Solana USDC mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' — НЕ ПРАЦЮЄ,
           receiver: merchantAddress,
           originalPrice: Number(Number(price).toFixed(2)),
           fiatCurrency: 'USD',
@@ -82,10 +79,17 @@ export class PaymentsService {
         paymentUrl: data.data.url,
         orderId: customOrderId,
       };
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown payment error';
 
+      // Для fetch errors справжня причина у error.cause (Node 18+ undici)
       this.logger.error(`KiraPay generation failed: ${errorMessage}`);
+      if (error?.cause) {
+        this.logger.error(`Cause: ${JSON.stringify(error.cause, Object.getOwnPropertyNames(error.cause))}`);
+      }
+      if (error?.stack) {
+        this.logger.error(`Stack: ${error.stack}`);
+      }
       throw new InternalServerErrorException('Failed to generate payment link. Please try again.');
     }
   }
