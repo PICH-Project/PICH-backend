@@ -1,9 +1,22 @@
-import { Controller, Post, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Body, BadRequestException } from '@nestjs/common';
 import { UmbraService } from '../umbra/umbra.service';
+import { CHARITY_CARDS } from './charities.constant';
 
 @Controller('donations')
 export class DonationsController {
   constructor(private readonly umbraService: UmbraService) {}
+
+  /**
+   * Список benevolent BAC-карток на яких можна донатити крипту через Umbra.
+   * Hardcoded — зміни в `charities.constant.ts`.
+   */
+  @Get('charities')
+  getCharities() {
+    return {
+      success: true,
+      data: CHARITY_CARDS,
+    };
+  }
 
   @Post('prepare')
   async prepareDonation(

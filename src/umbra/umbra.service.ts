@@ -25,13 +25,25 @@ export class UmbraService {
 
       const mockSigner = new PrepareOnlySigner(params.senderAddress);
 
+      const network = (this.configService.get('UMBRA_NETWORK') || 'devnet') as
+        | 'devnet'
+        | 'mainnet';
+      const defaultRpc =
+        network === 'mainnet'
+          ? 'https://api.mainnet-beta.solana.com'
+          : 'https://api.devnet.solana.com';
+      const defaultWs =
+        network === 'mainnet'
+          ? 'wss://api.mainnet-beta.solana.com'
+          : 'wss://api.devnet.solana.com';
+
       const client = await getUmbraClient(
         {
           signer: mockSigner,
-          network: 'devnet',
-          rpcUrl: this.configService.get('SOLANA_RPC_URL') || 'https://api.devnet.solana.com',
+          network,
+          rpcUrl: this.configService.get('SOLANA_RPC_URL') || defaultRpc,
           rpcSubscriptionsUrl:
-            this.configService.get('SOLANA_RPC_WS_URL') || 'wss://api.devnet.solana.com',
+            this.configService.get('SOLANA_RPC_WS_URL') || defaultWs,
           deferMasterSeedSignature: true,
         },
         {
