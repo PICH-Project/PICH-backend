@@ -11,6 +11,7 @@ import { AuthModule } from './auth/auth.module';
 import { PrivyModule } from './privy/privy.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PaymentsModule } from './payments/payments.module';
+import { DonationsModule } from './donation/donation.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { PaymentsModule } from './payments/payments.module';
     PrivyModule,
     SubscriptionsModule,
     PaymentsModule,
+    DonationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
