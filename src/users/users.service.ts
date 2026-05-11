@@ -12,6 +12,7 @@ import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import { UserStatsDto } from './dto/user-stats.dto';
 import { Connection } from '../connections/entities/connection.entity';
+import { FilesService } from 'src/files/files.service';
 // Define a more specific interface for Postgres errors
 interface PostgresError {
   code: string;
@@ -30,6 +31,7 @@ export class UsersService {
     private usersRepository: Repository<User>,
     @InjectRepository(Connection)
     private connectionsRepository: Repository<Connection>,
+    private readonly filesService: FilesService,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -49,7 +51,7 @@ export class UsersService {
       await this.usersRepository.save(user);
 
       return user;
-    } catch (error) {
+    } catch (error: any) {
       // Type guard to check if error is a Postgres error
       if (this.isPostgresError(error) && error.code === '23505') {
         throw new ConflictException('Email already exists');
@@ -103,7 +105,11 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(
+    id: string,
+    updateUserDto: UpdateUserDto,
+    avatar?: Express.Multer.File,
+  ): Promise<User> {
     const user = await this.findOne(id);
 
     // If password is provided, hash it
@@ -114,6 +120,10 @@ export class UsersService {
 
     // Update user
     Object.assign(user, updateUserDto);
+    if (avatar) {
+      const uploadResult = await this.filesService.uploadImage(avatar, 'avatars');
+      user.avatar = uploadResult.url;
+    }
     const updatedUser = await this.usersRepository.save(user);
 
     return updatedUser;

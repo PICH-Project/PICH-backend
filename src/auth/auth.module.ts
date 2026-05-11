@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './jwt.strategy';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { FilesModule } from 'src/files/files.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     }),
     UsersModule,
     forwardRef(() => SubscriptionsModule),
+    FilesModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

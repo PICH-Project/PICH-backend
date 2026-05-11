@@ -12,6 +12,7 @@ import { PrivyModule } from './privy/privy.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PaymentsModule } from './payments/payments.module';
 import { DonationsModule } from './donation/donation.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { DonationsModule } from './donation/donation.module';
     SubscriptionsModule,
     PaymentsModule,
     DonationsModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

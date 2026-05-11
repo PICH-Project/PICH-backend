@@ -11,6 +11,7 @@ import type { UpdateCardDto } from './dto/update-card.dto';
 import { User } from '../users/entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { FilesService } from '../files/files.service';
 
 @Injectable()
 export class CardsService {
@@ -20,9 +21,14 @@ export class CardsService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly filesService: FilesService,
   ) {}
 
-  async create(createCardDto: CreateCardDto, user: User): Promise<Card> {
+  async create(
+    createCardDto: CreateCardDto,
+    user: User,
+    photo?: Express.Multer.File,
+  ): Promise<Card> {
     await this.checkSubscriptionLimits(
       user.id,
       createCardDto.type,
@@ -31,8 +37,16 @@ export class CardsService {
       createCardDto.social,
     );
 
+    let photoUrl: string | undefined = undefined;
+
+    if (photo) {
+      const uploadResult = await this.filesService.uploadImage(photo, 'cards');
+      photoUrl = uploadResult.url;
+    }
+
     const card = this.cardsRepository.create({
       ...createCardDto,
+      avatar: photoUrl,
       user,
       userId: user.id,
     });
@@ -174,7 +188,12 @@ export class CardsService {
     return card;
   }
 
-  async update(id: string, updateCardDto: UpdateCardDto, user: User): Promise<Card> {
+  async update(
+    id: string,
+    updateCardDto: UpdateCardDto,
+    user: User,
+    photo?: Express.Multer.File,
+  ): Promise<Card> {
     const card = await this.findOne(id, user);
 
     const newType = updateCardDto.type || card.type;
@@ -189,7 +208,10 @@ export class CardsService {
     Object.assign(card, updateCardDto);
 
     const updatedCard = await this.cardsRepository.save(card);
-
+    if (photo) {
+      const uploadResult = await this.filesService.uploadImage(photo, 'cards');
+      card.avatar = uploadResult.url;
+    }
     if (isBecomingMainCard) {
       await this.handleMainCardUpdate(id, user.id);
 

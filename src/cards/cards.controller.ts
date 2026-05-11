@@ -8,6 +8,8 @@ import {
   Delete,
   UseGuards,
   Inject,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { CardsService } from './cards.service';
 import { CreateCardDto } from './dto/create-card.dto';
@@ -16,6 +18,7 @@ import { GetUser } from '../common/decorators/get-user.decorator';
 import type { User } from '../users/entities/user.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('cards')
 export class CardsController {
@@ -26,8 +29,13 @@ export class CardsController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  create(@Body() createCardDto: CreateCardDto, @GetUser() user: User) {
-    return this.cardsService.create(createCardDto, user);
+  @UseInterceptors(FileInterceptor('photo'))
+  create(
+    @Body() createCardDto: CreateCardDto,
+    @GetUser() user: User,
+    @UploadedFile() photo?: Express.Multer.File,
+  ) {
+    return this.cardsService.create(createCardDto, user, photo);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -54,8 +62,14 @@ export class CardsController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCardDto: UpdateCardDto, @GetUser() user: User) {
-    return this.cardsService.update(id, updateCardDto, user);
+  @UseInterceptors(FileInterceptor('photo'))
+  update(
+    @Param('id') id: string,
+    @Body() updateCardDto: UpdateCardDto,
+    @GetUser() user: User,
+    @UploadedFile() photo?: Express.Multer.File,
+  ) {
+    return this.cardsService.update(id, updateCardDto, user, photo);
   }
 
   @UseGuards(JwtAuthGuard)

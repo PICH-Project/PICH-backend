@@ -8,6 +8,9 @@ import {
   Delete,
   UseGuards,
   Inject,
+  BadRequestException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -15,6 +18,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import type { User } from './entities/user.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('users')
 export class UsersController {
@@ -52,8 +56,13 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(id, updateUserDto);
+  @UseInterceptors(FileInterceptor('avatar'))
+  update(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+    @UploadedFile() avatar?: Express.Multer.File,
+  ) {
+    return this.usersService.update(id, updateUserDto, avatar);
   }
 
   @Patch(':id/main-card/:cardId')
