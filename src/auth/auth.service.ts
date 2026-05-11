@@ -9,6 +9,7 @@ import { PrivyService } from '../privy/privy.service';
 import { LoginWithPrivyDto } from './dto/login-with-privy.dto';
 import { User } from '../users/entities/user.entity';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { FilesService } from 'src/files/files.service';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly privyService: PrivyService,
     @Inject(forwardRef(() => SubscriptionsService))
     private subscriptionsService: SubscriptionsService,
+    private readonly filesService: FilesService,
   ) {}
 
   private async createUserFromPrivyToken(userPrivyId: string): Promise<User> {
@@ -68,9 +70,18 @@ export class AuthService {
     }
   }
 
-  async register(registerDto: RegisterDto) {
+  async register(registerDto: RegisterDto, avatar?: Express.Multer.File) {
+    let avatarUrl: string | undefined = undefined;
+    if (avatar) {
+      const uploadResult = await this.filesService.uploadImage(avatar, 'avatars');
+      avatarUrl = uploadResult.url;
+    }
+
     // Create user (UsersService handles password hashing)
-    const user = await this.usersService.create(registerDto);
+    const user = await this.usersService.create({
+      ...registerDto,
+      avatar: avatarUrl,
+    });
 
     await this.subscriptionsService.createFreeSubscription(user.id);
 
