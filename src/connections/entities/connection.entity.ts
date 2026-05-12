@@ -14,8 +14,10 @@ export class Connection {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // The first card in the connection
-  @ManyToOne(() => Card)
+  // The first card in the connection.
+  // onDelete: 'CASCADE' — коли картку видаляють, connection теж видаляється
+  // (інакше залишається orphan-row з broken FK).
+  @ManyToOne(() => Card, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'card1Id' })
   card1: Card;
 
@@ -23,7 +25,7 @@ export class Connection {
   card1Id: string;
 
   // The second card in the connection
-  @ManyToOne(() => Card)
+  @ManyToOne(() => Card, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'card2Id' })
   card2: Card;
 

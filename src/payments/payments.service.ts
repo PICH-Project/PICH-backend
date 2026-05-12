@@ -95,92 +95,199 @@ export class PaymentsService {
   }
 
   async processWebhook(payload: any): Promise<void> {
-    this.logger.log(`Webhook received: ${payload.event}`);
+    // ─────────────────────────────────────────────────────────────────────
+    //  KiraPay webhook — детальні логи для демо хакатона + дебагу.
+    // ─────────────────────────────────────────────────────────────────────
+    this.logger.log('═══════════════════════════════════════════════════');
+    this.logger.log('         KIRAPAY WEBHOOK RECEIVED');
+    this.logger.log('═══════════════════════════════════════════════════');
+    this.logger.log(`Timestamp: ${new Date().toISOString()}`);
+    this.logger.log(`Raw payload keys: ${Object.keys(payload || {}).join(', ')}`);
+    this.logger.log(`Full payload: ${JSON.stringify(payload, null, 2)}`);
 
-    if (payload.event !== 'transaction.succeeded') {
-      this.logger.log(`Ignoring event: ${payload.event}`);
+    // KiraPay може шле подію у кількох форматах — парсимо універсально.
+    const eventName = payload.event ?? payload.type ?? payload.eventType;
+    const transactionData = payload.data ?? payload.transaction ?? payload;
+    const txStatus: string | undefined = transactionData?.status;
+
+    this.logger.log(`Event type: ${eventName ?? '(UNKNOWN)'}`);
+    this.logger.log(`Tx status:  ${txStatus ?? '(no status field)'}`);
+
+    // ═══ DEMO MODE (хакатон) ═══
+    // Активуємо одразу на будь-який transaction-event (включно з .created/Pending).
+    // Для прода треба чекати on-chain confirmation (status=Succeeded), але для
+    // швидкого demo UX — даємо підписку як тільки KiraPay підтвердив що юзер
+    // тиснув pay. Якщо транза потім failed — це окремий рідкісний кейс.
+    //
+    // Пропускаємо тільки явні провали.
+    const isExplicitFailure =
+      (txStatus &&
+        ['failed', 'cancelled', 'canceled', 'rejected', 'error'].includes(
+          txStatus.toLowerCase(),
+        )) ||
+      eventName === 'transaction.failed' ||
+      eventName === 'payment.failed';
+
+    if (isExplicitFailure) {
+      this.logger.warn(
+        `╳ Skipping FAILED transaction (event="${eventName}", status="${txStatus}")`,
+      );
+      this.logger.log('═══════════════════════════════════════════════════\n');
       return;
     }
 
-    const transactionData = payload.data;
+    // Якщо event взагалі не про транзу (наприклад просто ping/health) —
+    // ігноруємо. Транза має або recognized event name, або сам data блок
+    // з полями customOrderId + amount/hash.
+    const looksLikeTransaction =
+      (eventName && /transaction|payment/i.test(eventName)) ||
+      !!transactionData?.customOrderId;
+
+    if (!looksLikeTransaction) {
+      this.logger.warn(
+        `╳ Skipping — doesn't look like a transaction event (event="${eventName}")`,
+      );
+      this.logger.log('═══════════════════════════════════════════════════\n');
+      return;
+    }
+
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Транзакція пройшла — детальний breakdown для демо.
+    // ─────────────────────────────────────────────────────────────────────
     const customOrderId = transactionData?.customOrderId;
+    const txHash = transactionData?.hash ?? transactionData?.txHash ?? transactionData?.id;
+    const txAmount = transactionData?.amount ?? transactionData?.value;
+    const txCurrency = transactionData?.currency ?? transactionData?.token ?? 'unknown';
+    const txChain = transactionData?.chain ?? transactionData?.chainId ?? transactionData?.network;
+    const sender = transactionData?.sender ?? transactionData?.from ?? transactionData?.payerAddress;
+    const receiver = transactionData?.receiver ?? transactionData?.to ?? transactionData?.merchantAddress;
+    const fiatAmount = transactionData?.fiatAmount ?? transactionData?.originalPrice;
+    const fiatCurrency = transactionData?.fiatCurrency ?? 'USD';
+
+    this.logger.log('───────────────────────────────────────────────────');
+    this.logger.log('         TRANSACTION DETAILS');
+    this.logger.log('───────────────────────────────────────────────────');
+    this.logger.log(`Hash:        ${txHash ?? 'N/A'}`);
+    this.logger.log(`Amount:      ${txAmount ?? 'N/A'} ${txCurrency}`);
+    this.logger.log(`Fiat value:  ${fiatAmount ?? 'N/A'} ${fiatCurrency}`);
+    this.logger.log(`Chain:       ${txChain ?? 'N/A'}`);
+    this.logger.log(`Sender:      ${sender ?? 'N/A'}`);
+    this.logger.log(`Receiver:    ${receiver ?? 'N/A'}`);
+
+    // Solscan-лінка для зручної верифікації під час демо.
+    if (txHash && (txChain === 'sol' || String(txChain).toLowerCase().includes('solana'))) {
+      this.logger.log(`Solscan:     https://solscan.io/tx/${txHash}`);
+    } else if (txHash && txChain) {
+      this.logger.log(`Explorer:    (chain ${txChain}, hash ${txHash})`);
+    }
+
+    this.logger.log(`Custom order ID: ${customOrderId ?? 'N/A'}`);
+    this.logger.log('───────────────────────────────────────────────────');
 
     if (!customOrderId) {
-      this.logger.warn('Webhook received without customOrderId');
+      this.logger.warn('╳ Webhook ignored — no customOrderId in payload');
+      this.logger.log('═══════════════════════════════════════════════════\n');
       return;
     }
 
     const parts = customOrderId.split('|');
 
     if (parts.length !== 3) {
-      this.logger.error(`Invalid customOrderId format: ${customOrderId}`);
+      this.logger.error(
+        `╳ Invalid customOrderId format: "${customOrderId}" — expected "userId|planCode|billingCycle"`,
+      );
+      this.logger.log('═══════════════════════════════════════════════════\n');
       return;
     }
 
     const [userId, planCodeStr, billingCycleStr] = parts;
 
-    try {
-      this.logger.log(
-        `Processing payment for user ${userId}, plan ${planCodeStr}, cycle ${billingCycleStr}`,
-      );
+    this.logger.log(`User:        ${userId}`);
+    this.logger.log(`Plan:        ${planCodeStr}`);
+    this.logger.log(`Cycle:       ${billingCycleStr}`);
+    this.logger.log('───────────────────────────────────────────────────');
 
+    try {
       const plan = await this.subscriptionsService.getPlanByCode(planCodeStr as PlanCode);
 
       const subscription = await this.subscriptionsService.activateSubscription({
         userId,
         planId: plan.id,
         paymentProvider: 'KIRAPAY',
-        externalId: transactionData.hash || transactionData.id,
-        amount: transactionData.amount,
-        currency: transactionData.currency || 'USDG',
+        externalId: txHash,
+        amount: txAmount,
+        currency: txCurrency,
         billingCycle: billingCycleStr as BillingCycle,
       });
 
-      this.logger.log(`Subscription ${planCodeStr} activated for user ${userId}`);
       const paymentTransaction = this.paymentTransactionsRepository.create({
         userId,
         subscriptionId: subscription.id,
-        amount: transactionData.amount,
-        currency: transactionData.currency || 'USDG',
+        amount: txAmount,
+        currency: txCurrency,
         paymentProvider: 'KIRAPAY',
-        providerTransactionId: transactionData.hash || transactionData.id,
+        providerTransactionId: txHash,
         status: 'completed',
         metadata: {
           planCode: planCodeStr,
           billingCycle: billingCycleStr,
-          transactionData: transactionData,
+          chain: txChain,
+          sender,
+          receiver,
+          fiatAmount,
+          fiatCurrency,
+          transactionData,
           processedAt: new Date().toISOString(),
         },
       });
 
       await this.paymentTransactionsRepository.save(paymentTransaction);
-      this.logger.log(`Subscription ${planCodeStr} activated for user ${userId}`);
-      this.logger.log(`Payment transaction ${paymentTransaction.id} recorded`);
+
+      this.logger.log('         RESULT');
+      this.logger.log('───────────────────────────────────────────────────');
+      this.logger.log(`✓ Subscription ${planCodeStr} (${billingCycleStr}) ACTIVATED`);
+      this.logger.log(`✓ Subscription ID:  ${subscription.id}`);
+      this.logger.log(`✓ Expires at:       ${subscription.expiresAt?.toISOString?.() ?? 'N/A'}`);
+      this.logger.log(`✓ Transaction row:  ${paymentTransaction.id}`);
+      this.logger.log('═══════════════════════════════════════════════════\n');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown payment error';
 
-      this.logger.error(`Failed to activate subscription via webhook: ${errorMessage}`);
+      this.logger.error('───────────────────────────────────────────────────');
+      this.logger.error('         ACTIVATION FAILED');
+      this.logger.error('───────────────────────────────────────────────────');
+      this.logger.error(`╳ Reason: ${errorMessage}`);
+
       try {
         const failedTransaction = this.paymentTransactionsRepository.create({
           userId,
           subscriptionId: null,
-          amount: transactionData.amount,
-          currency: transactionData.currency || 'USDG',
+          amount: txAmount,
+          currency: txCurrency,
           paymentProvider: 'KIRAPAY',
-          providerTransactionId: transactionData.hash || transactionData.id,
+          providerTransactionId: txHash,
           status: 'failed',
           metadata: {
             error: errorMessage,
-            transactionData: transactionData,
+            planCode: planCodeStr,
+            billingCycle: billingCycleStr,
+            chain: txChain,
+            sender,
+            receiver,
+            fiatAmount,
+            fiatCurrency,
+            transactionData,
             failedAt: new Date().toISOString(),
           },
         });
 
         await this.paymentTransactionsRepository.save(failedTransaction);
-        this.logger.log(`Failed transaction recorded: ${failedTransaction.id}`);
+        this.logger.error(`Failed transaction row recorded: ${failedTransaction.id}`);
       } catch (saveError) {
         this.logger.error(`Failed to save error transaction: ${saveError}`);
       }
+      this.logger.log('═══════════════════════════════════════════════════\n');
     }
   }
 }

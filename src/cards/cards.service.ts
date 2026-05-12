@@ -12,6 +12,7 @@ import { User } from '../users/entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { FilesService } from '../files/files.service';
+import { Connection } from '../connections/entities/connection.entity';
 
 @Injectable()
 export class CardsService {
@@ -20,6 +21,8 @@ export class CardsService {
     private readonly cardsRepository: Repository<Card>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(Connection)
+    private readonly connectionsRepository: Repository<Connection>,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly filesService: FilesService,
   ) {}
@@ -37,16 +40,27 @@ export class CardsService {
       createCardDto.social,
     );
 
+    // Двоканальна підтримка аватарки:
+    //  1) multipart-photo (Катин flow) — бек сам заливає у Supabase
+    //  2) avatar-URL у JSON-payload — мобілка вже залила через /upload/image
+    //
+    // Якщо переданий photo — він має пріоритет (свіже фото).
+    // Інакше — лишаємо avatar з createCardDto.
     let photoUrl: string | undefined = undefined;
-
     if (photo) {
       const uploadResult = await this.filesService.uploadImage(photo, 'cards');
       photoUrl = uploadResult.url;
     }
 
+    await this.checkCustomizationAccess(user.id, {
+      nameFont: createCardDto.nameFont,
+      avatarFrame: createCardDto.avatarFrame,
+    });
+
     const card = this.cardsRepository.create({
       ...createCardDto,
-      avatar: photoUrl,
+      // Якщо photoUrl undefined — НЕ перетираємо createCardDto.avatar.
+      ...(photoUrl ? { avatar: photoUrl } : {}),
       user,
       userId: user.id,
     });
@@ -116,6 +130,47 @@ export class CardsService {
           `Your subscription allows ${limits.socialLinks} social link(s). ` +
             `You tried to add ${socialCount}. ` +
             `Upgrade to Premium for +2 social links.`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Перевіряє чи юзеру дозволено застосовувати кастомізації картки за його планом:
+   *  - `nameFont` (крім null/'default')  → потребує Premium ADDON або VIP
+   *  - `avatarFrame` (крім null/'none')  → потребує VIP only
+   *
+   * Якщо юзер передав null чи дефолтне значення — перевірка пропускається
+   * (вважаємо що він не активує фічу).
+   */
+  private async checkCustomizationAccess(
+    userId: string,
+    fields: { nameFont?: string | null; avatarFrame?: string | null },
+  ): Promise<void> {
+    const wantsCustomFont =
+      fields.nameFont !== undefined &&
+      fields.nameFont !== null &&
+      fields.nameFont !== 'default';
+
+    if (wantsCustomFont) {
+      const hasPerks = await this.subscriptionsService.hasPremiumPerks(userId);
+      if (!hasPerks) {
+        throw new ForbiddenException(
+          'Custom name font is a Premium feature. Upgrade to Premium or VIP to use it.',
+        );
+      }
+    }
+
+    const wantsCustomFrame =
+      fields.avatarFrame !== undefined &&
+      fields.avatarFrame !== null &&
+      fields.avatarFrame !== 'none';
+
+    if (wantsCustomFrame) {
+      const hasVip = await this.subscriptionsService.hasVip(userId);
+      if (!hasVip) {
+        throw new ForbiddenException(
+          'Custom avatar frame is a VIP-only feature. Upgrade to VIP to use it.',
         );
       }
     }
@@ -203,6 +258,11 @@ export class CardsService {
 
     await this.checkSubscriptionLimits(user.id, newType, newBio, newPhones, newSocial);
 
+    await this.checkCustomizationAccess(user.id, {
+      nameFont: updateCardDto.nameFont,
+      avatarFrame: updateCardDto.avatarFrame,
+    });
+
     const isBecomingMainCard = updateCardDto.isMainCard === true && !card.isMainCard;
 
     Object.assign(card, updateCardDto);
@@ -269,6 +329,17 @@ export class CardsService {
 
   async remove(id: string, user: User): Promise<void> {
     const card = await this.findOne(id, user);
+
+    // Перед видаленням картки чистимо всі connections де вона фігурує
+    // (як card1 або card2). Це робить cleanup детермінованим навіть якщо
+    // у БД на FK ще не стоїть ON DELETE CASCADE — корисно бо synchronize
+    // не змінює існуючі constraints.
+    const orphanConnections = await this.connectionsRepository.find({
+      where: [{ card1Id: id }, { card2Id: id }],
+    });
+    if (orphanConnections.length > 0) {
+      await this.connectionsRepository.remove(orphanConnections);
+    }
 
     await this.cardsRepository.remove(card);
   }

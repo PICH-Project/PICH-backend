@@ -96,4 +96,14 @@ export class UpdateCardDto {
   @IsBoolean()
   @IsOptional()
   isInWallet?: boolean;
+
+  /** Premium-фіча. 'default' | 'classic' | 'script' | null. */
+  @IsString()
+  @IsOptional()
+  nameFont?: string | null;
+
+  /** VIP-only фіча. 'none' | 'gold' | 'aurora' | null. */
+  @IsString()
+  @IsOptional()
+  avatarFrame?: string | null;
 }

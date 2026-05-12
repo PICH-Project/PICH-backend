@@ -31,7 +31,7 @@ export const CHARITY_CARDS: CharityCard[] = [
     contactPerson: 'Taras Chmut',
     slogan: 'Supporting the Armed Forces of Ukraine',
     donationWallet: '8qBxGn9VC3gvFZc6j4w6jD5GEAbGxhzmPd9zci2pnpDU', // TODO: real CBA wallet
-    logoUrl: 'https://savelife.in.ua/wp-content/themes/savelife/assets/img/logo.svg',
+    logoUrl: 'https://elvtr.com/hubfs/pages/stand-with-ukraine/logos/come-back-alive.png',
     cardColor: '#1A2332',
     description:
       'Largest non-government organization in Ukraine that supports the Armed Forces with non-lethal equipment, training and medical aid.',
@@ -44,7 +44,7 @@ export const CHARITY_CARDS: CharityCard[] = [
     contactPerson: 'Murat Sahin',
     slogan: 'For every child, hope',
     donationWallet: '8qBxGn9VC3gvFZc6j4w6jD5GEAbGxhzmPd9zci2pnpDU', // TODO: real UNICEF wallet
-    logoUrl: 'https://www.unicef.org/sites/default/files/styles/logo/public/UNICEF_ForEveryChild_Cyan_Vertical_RGB_72.png',
+    logoUrl: 'https://media.onova.org.ua/onova-october-stg/uploads/public/635/5cd/c52/6355cdc52b891163055112.png',
     cardColor: '#1CABE2',
     description:
       'Working to protect Ukrainian children affected by war — providing safe water, education, mental health support and emergency aid.',
@@ -57,7 +57,7 @@ export const CHARITY_CARDS: CharityCard[] = [
     contactPerson: 'Serhiy Prytula',
     slogan: 'People helping people',
     donationWallet: '8qBxGn9VC3gvFZc6j4w6jD5GEAbGxhzmPd9zci2pnpDU', // TODO: real Prytula wallet
-    logoUrl: 'https://prytulafoundation.org/static/img/logo.svg',
+    logoUrl: 'https://ds7zgdsyui79p.cloudfront.net/logo_angl_a68c8d9590.jpg',
     cardColor: '#FFD700',
     description:
       'Charitable foundation focused on military, humanitarian and demining projects. From drones to ambulances — equipping those who defend Ukraine.',
@@ -70,7 +70,7 @@ export const CHARITY_CARDS: CharityCard[] = [
     contactPerson: 'Andriy Sadovyi',
     slogan: 'Rehabilitation and prosthetics for civilians and soldiers',
     donationWallet: '8qBxGn9VC3gvFZc6j4w6jD5GEAbGxhzmPd9zci2pnpDU', // TODO: real UNBROKEN wallet
-    logoUrl: 'https://unbroken.org.ua/static/images/logo.svg',
+    logoUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS4s23G11XVOhTTS38F5E0P6KJYNubEL6O44w&s',
     cardColor: '#2E7D32',
     description:
       'National rehabilitation center in Lviv providing prosthetics, reconstructive surgery and psychological support to those wounded in the war.',

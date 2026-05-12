@@ -97,4 +97,20 @@ export class CreateCardDto {
   @IsBoolean()
   @IsOptional()
   isInWallet?: boolean;
+
+  /**
+   * Преміум-фіча. 'default' | 'classic' | 'script' | null.
+   * Перевірка плану — у service.checkSubscriptionLimits.
+   */
+  @IsString()
+  @IsOptional()
+  nameFont?: string | null;
+
+  /**
+   * VIP-only фіча. 'none' | 'gold' | 'aurora' | null.
+   * Перевірка плану — у service.checkSubscriptionLimits.
+   */
+  @IsString()
+  @IsOptional()
+  avatarFrame?: string | null;
 }

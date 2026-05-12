@@ -330,6 +330,34 @@ export class SubscriptionsService {
     return this.getUserCombinedLimits(userId);
   }
 
+  /**
+   * Чи має юзер "Premium-перки" — тобто Premium ADDON активний АБО VIP активний.
+   * Юзається для гейтингу преміум-фіч (зокрема nameFont на картці).
+   */
+  async hasPremiumPerks(userId: string): Promise<boolean> {
+    const activeSubs = await this.subscriptionsRepository.find({
+      where: { userId, status: SubscriptionStatus.ACTIVE },
+      relations: ['plan'],
+    });
+    return activeSubs.some(
+      s =>
+        s.plan.code === PlanCode.VIP ||
+        s.subscriptionType === SubscriptionType.ADDON,
+    );
+  }
+
+  /**
+   * Чи має юзер активну VIP-підписку.
+   * Юзається для гейтингу VIP-only фіч (зокрема avatarFrame на картці).
+   */
+  async hasVip(userId: string): Promise<boolean> {
+    const activeSubs = await this.subscriptionsRepository.find({
+      where: { userId, status: SubscriptionStatus.ACTIVE },
+      relations: ['plan'],
+    });
+    return activeSubs.some(s => s.plan.code === PlanCode.VIP);
+  }
+
   async createPlan(createDto: CreateSubscriptionPlanDto): Promise<SubscriptionPlan> {
     const existingPlan = await this.plansRepository.findOne({
       where: { code: createDto.code },

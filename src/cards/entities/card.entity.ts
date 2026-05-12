@@ -90,6 +90,22 @@ export class Card {
   @Column({ default: false })
   isInWallet: boolean;
 
+  /**
+   * Преміум-фіча: вибраний шрифт для name (на картці).
+   * 'default' | 'classic' | 'script' | null. Доступно для Premium ADDON / VIP.
+   * Явний type: 'varchar' — без нього TypeORM не може вивести SQL-тип через
+   * reflection із union `string | null` (бачить як Object → DataTypeNotSupportedError).
+   */
+  @Column({ type: 'varchar', nullable: true, default: null })
+  nameFont: string | null;
+
+  /**
+   * VIP-фіча: рамка навколо avatar.
+   * 'none' | 'gold' | 'aurora' | null. Доступно тільки для VIP.
+   */
+  @Column({ type: 'varchar', nullable: true, default: null })
+  avatarFrame: string | null;
+
   @ManyToOne(() => User, user => user.cards)
   @JoinColumn({ name: 'userId' })
   user: User;
