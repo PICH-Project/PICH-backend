@@ -163,6 +163,6 @@ src/
 ## Team
 
 - **Volodymyr Havryliuk** — mobile app + integrations
-- **Kateryna [TODO: surname]** — backend & Umbra deposit-builder
+- **Kateryna Striletska** — backend & Umbra deposit-builder
 
 Built for the **Colosseum** Solana hackathon.
